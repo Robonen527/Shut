@@ -12,7 +12,7 @@ co = cohere.Client('2ELFLZKqLyZi5bLIGwt1kDBMpoAT9ch44DHfycAm')  # This is your t
 
 class Documents:
 
-    def _init_(self, sources: List[Dict[str, str]]):
+    def __init__(self, sources: List[Dict[str, str]]):
         self.sources = sources
         self.docs = []
         self.docs_embs = []
@@ -120,7 +120,7 @@ class Documents:
 
 class Chatbot:
 
-    def _init_(self, docs: Documents):
+    def __init__(self, docs: Documents):
         self.docs = docs
         self.conversation_id = str(uuid.uuid4())
 
@@ -191,7 +191,7 @@ class Chatbot:
 
 
 class App:
-    def _init_(self, chatbot: Chatbot):
+    def __init__(self, chatbot: Chatbot):
         """
         Initializes an instance of the App class.
 
