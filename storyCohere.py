@@ -1,3 +1,4 @@
+import chardet
 import cohere
 import os
 import hnswlib
@@ -6,6 +7,7 @@ import uuid
 from typing import List, Dict
 from unstructured.partition.html import partition_html
 from unstructured.chunking.title import chunk_by_title
+from unstructured.partition.text import partition_text
 
 co = cohere.Client('2ELFLZKqLyZi5bLIGwt1kDBMpoAT9ch44DHfycAm')  # This is your trial API key
 
@@ -17,7 +19,7 @@ class Documents:
         self.docs = []
         self.docs_embs = []
         self.retrieve_top_k = 10
-        self.rerank_top_k = 3
+        self.rerank_top_k = 5
         self.load()
         self.embed()
         self.index()
@@ -29,14 +31,15 @@ class Documents:
         print("Loading documents...")
 
         for source in self.sources:
-            elements = partition_html(url=source["url"])
+            elements = partition_text(filename=source["fileName"], strategy="hi_res", include_page_breaks=True)
             chunks = chunk_by_title(elements)
             for chunk in chunks:
+                #print(chunk)
                 self.docs.append(
                     {
                         "title": source["title"],
                         "text": str(chunk),
-                        "url": source["url"],
+                        "fileName": source["fileName"],
                     }
                 )
 
@@ -54,7 +57,7 @@ class Documents:
             texts = [item["text"] for item in batch]
             docs_embs_batch = co.embed(
                 texts=texts,
-                model="embed-english-v3.0",
+                model="embed-multilingual-v3.0",
                 input_type="search_document"
             ).embeddings
             self.docs_embs.extend(docs_embs_batch)
@@ -85,7 +88,7 @@ class Documents:
         docs_retrieved = []
         query_emb = co.embed(
             texts=[query],
-            model="embed-english-v3.0",
+            model="embed-multilingual-v3.0",
             input_type="search_query"
         ).embeddings
 
@@ -99,7 +102,7 @@ class Documents:
             query=query,
             documents=docs_to_rerank,
             top_n=self.rerank_top_k,
-            model="rerank-english-v2.0",
+            model="rerank-multilingual-v3.0",
         )
 
         doc_ids_reranked = []
@@ -111,7 +114,7 @@ class Documents:
                 {
                     "title": self.docs[doc_id]["title"],
                     "text": self.docs[doc_id]["text"],
-                    "url": self.docs[doc_id]["url"],
+                    "fileName": self.docs[doc_id]["fileName"],
                 }
             )
 
@@ -140,7 +143,7 @@ class Chatbot:
         """
 
         # Generate search queries (if any)
-        response = co.chat(message=message, search_queries_only=True)
+        response = co.chat(message=message, model="command-r", search_queries_only=True)
 
         if response.search_queries:
             print("Retrieving information...")
@@ -149,6 +152,7 @@ class Chatbot:
             response = co.chat(
                 message=message,
                 documents=documents,
+                model="command-r",
                 conversation_id=self.conversation_id,
                 stream=True,
             )
@@ -158,6 +162,9 @@ class Chatbot:
 
             # If there is no search query, directly respond
         else:
+            print("the question was not about the bible, sorry.\nask a question about the bible!")
+            return
+
             response = co.chat(
                 message=message,
                 conversation_id=self.conversation_id,
@@ -223,7 +230,7 @@ class App:
             citations_flag = False
 
             for event in response:
-                stream_type = type(event)._name_
+                stream_type = type(event).__name__
 
                 # Text
                 if stream_type == "StreamTextGeneration":
@@ -243,7 +250,7 @@ class App:
                         documents = [{'id': doc['id'],
                                       'text': doc['text'][:50] + '...',
                                       'title': doc['title'],
-                                      'url': doc['url']}
+                                      'fileName': doc['fileName']}
                                      for doc in event.documents]
                         for doc in documents:
                             print(doc)
@@ -252,14 +259,12 @@ class App:
 
 
 sources = []
-for i in range(50):
-    sources.append(
-        {
-            "title": "bible - Genesis " + str(i),
-            "url": "https://www.o-bible.com/cgibin/ob.cgi?version=bbe&book=gen&chapter=" + str(i)
-        }
-    )
-
+sources.append(
+    {
+    "title": "סיפור",
+    "fileName": "story.txt"
+    }
+)
 documents = Documents(sources)
 
 chatbot = Chatbot(documents)
