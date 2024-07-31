@@ -167,13 +167,16 @@ class Chatbot:
                 conversation_id=self.conversation_id,
                 stream=True,
             )
+            if not response.documents:
+                print("השאלה לא היה קשורה לתנך, סליחה\nשאל שאלה על התנך!")
+                return
             for event in response:
                 yield event
             yield response
 
             # If there is no search query, directly respond
         else:
-            print("the question was not about the bible, sorry.\nask a question about the bible!")
+            print("השאלה לא היה קשורה לתנך, סליחה\nשאל שאלה על התנך!")
             return
 
             response = co.chat(
