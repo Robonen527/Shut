@@ -1,3 +1,5 @@
+import time
+
 import cohere
 import os
 import hnswlib
@@ -167,16 +169,17 @@ class Chatbot:
                 conversation_id=self.conversation_id,
                 stream=True,
             )
-            if not response.documents:
-                print("השאלה לא היה קשורה לתנך, סליחה\nשאל שאלה על התנך!")
-                return
+
             for event in response:
                 yield event
+            if not response.documents:
+                print("השאלה לא הייתה קשורה לתנך, סליחה\nשאל שאלה על התנך!")
+                return
             yield response
 
             # If there is no search query, directly respond
         else:
-            print("השאלה לא היה קשורה לתנך, סליחה\nשאל שאלה על התנך!")
+            print("השאלה לא הייתה קשורה לתנך, סליחה\nשאל שאלה על התנך!")
             return
 
             response = co.chat(
@@ -239,22 +242,35 @@ class App:
 
             response = self.chatbot.generate_response(message)
 
+            def printText(texts):
+                for text in texts:
+                    print(text, end="")
+                    time.sleep(0.05)
+            text = []
             # Print the chatbot response
             print("Chatbot:")
             citations_flag = False
+            printed_text_flag = False
 
             for event in response:
                 stream_type = type(event).__name__
 
                 # Text
                 if stream_type == "StreamTextGeneration":
-                    print(event.text, end="")
+                    text.append(event.text)
+                    #print(event.text, end="")
 
                 # Citations
                 if stream_type == "StreamCitationGeneration":
+
+                    if not printed_text_flag:
+                        printText(text)
+                        printed_text_flag = True
+
                     if not citations_flag:
                         print("\n\nCITATIONS:")
                         citations_flag = True
+
                     print(event.citations[0])
 
                 # Documents
