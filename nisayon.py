@@ -143,31 +143,54 @@ class Chatbot:
     List[Dict[str, str]]: A list of dictionaries representing the retrieved
     documents.
     -------------------------------------------"""
+
     def generate_response(self, message: str):
-        # Generate search queries (if any)
-        response = co.chat(message=message, model="command-r-plus", search_queries_only=True)
+        # Initialize a list to hold all search queries
+        all_search_queries = []
 
-        if response.search_queries:
-            print("Retrieving information...")
-            documents = self.retrieve_docs(response)
-            response = co.chat(
-                message=message,
-                documents=documents,
-                model="command-r-plus",
-                conversation_id=self.conversation_id,
-                stream=True,
-            )
-            for event in response:
-                yield event
-            if not response.documents:
-                print("השאלה לא הייתה קשורה לתנך, סליחה\nשאל שאלה על התנך!")
-                return
-            yield response
+        # Number of documents per batch
+        batch_size = 5
 
-        # If there is no search query, directly respond
-        else:
+        # Number of documents
+        num_docs = len(self.docs.docs)
+
+        # Process documents in batches
+        for start in range(0, num_docs, batch_size):
+            end = min(start + batch_size, num_docs)
+            batch_docs = self.docs.docs[start:end]
+
+            # Generate search queries for the current batch of documents
+            response = co.chat(message=message, search_queries_only=True)  # Removed model parameter
+
+            if response.search_queries:
+                all_search_queries.extend(response.search_queries)
+            else:
+                print("No search queries returned for this batch.")
+
+        # Extract queries from the collected search queries
+        queries = [query["text"] for query in all_search_queries]
+
+        # Retrieve documents based on all accumulated queries
+        all_retrieved_docs = []
+        for query in queries:
+            all_retrieved_docs.extend(self.docs.retrieve(query))
+
+        # Perform the final query on all accumulated documents
+        final_response = co.chat(
+            message=message,
+            documents=all_retrieved_docs,
+            conversation_id=self.conversation_id,
+            stream=True,
+        )  # Removed model parameter
+
+        # Yield responses from the final query
+        for event in final_response:
+            yield event
+
+        if not final_response.documents:
             print("השאלה לא הייתה קשורה לתנך, סליחה\nשאל שאלה על התנך!")
             return
+        yield final_response
 
     """----------------------------------------------------------
     Retrieves documents based on the search queries in the response.
@@ -264,7 +287,7 @@ class App:
 
 
 sources = []
-for i in range(30,40):
+for i in range(0, 10):
     sources.append(
         {
             "title": "תנך - בראשית " + str(i + 1),
